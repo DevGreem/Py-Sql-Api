@@ -149,11 +149,15 @@ class Database():
             request += f' where {self._wheres_to_text(query.where, params)}'
         
         if query.order_by:
-            request += f' order by {', '.join(list(map(lambda column: column.name, query.order_by.columns)))} ?'
+            order_clause = ', '.join(list(map(lambda column: column.name, query.order_by.columns)))
+            
+            request += f' order by {order_clause} ?'
             params.append('desc' if query.order_by.desc else 'asc')
         
         if query.group_by:
-            request += f' group by {', '.join(list(map(lambda column: column.name, query.group_by.columns)))}'
+            group_clause = ', '.join(list(map(lambda column: column.name, query.group_by.columns)))
+            
+            request += f' group by {group_clause}'
         
         if query.having:
             request += f' having {self._wheres_to_text(query.having, params)}'
