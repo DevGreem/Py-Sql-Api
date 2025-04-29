@@ -1,0 +1,7 @@
+{
+    "server": "tomoc-server.database.windows.net",
+    "database": "TomocDb",
+    "uid": "TomocAdmin",
+    "pwd": "Tomoc@Db.2025",
+    "encrypt": "yes"
+}
