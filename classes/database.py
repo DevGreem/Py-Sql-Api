@@ -172,7 +172,9 @@ class Database():
     
     def insert(self, query: InsertQuery):
         
-        table_columns = f'({', '.join(query.columns)})' if query.columns else ''
+        clause = ', '.join(query.columns)
+        
+        table_columns = f'({clause})' if query.columns else ''
         
         query_params = ', '.join('?' for _ in range(len(query.values)))
         
