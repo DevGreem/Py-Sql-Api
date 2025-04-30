@@ -4,7 +4,9 @@ FROM python:3.11-slim
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Instala herramientas necesarias
-RUN apt-get update && apt-get install -y unixodbc msodbcsql
+RUN apt-get update && apt-get install -y unixodbc msodbcsql \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY ./odbc.ini /root/.odbc.ini
 
