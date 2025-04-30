@@ -6,8 +6,6 @@ from re import *
 from typing import Any
 from classes.SQLClasses import *
 
-print(pyodbc.drivers())
-
 class Database():
 
     _connection: Connection
