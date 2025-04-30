@@ -6,13 +6,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Instala herramientas necesarias
 RUN apt-get update && apt-get install -y \
     curl gnupg2 unixodbc-dev gcc g++ \
-    # Eliminar paquetes en conflicto
-    && apt-get remove -y libodbc1 libodbcinst1debian2 unixodbc-common \
-    # Añadir repositorio de Microsoft y la clave GPG
-    && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/trusted.gpg.d/microsoft.gpg \
     && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    # Aceptar EULA e instalar el controlador ODBC de Microsoft
+    # Eliminar paquetes conflictivos si es necesario
+    && apt-get remove -y libodbc1 libodbcinst1debian2 unixodbc-common \
+    # Instalar ODBC de Microsoft
     && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
