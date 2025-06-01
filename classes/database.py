@@ -48,6 +48,21 @@ class Database():
             params.append(where.value)
         
         return text
+    
+    @staticmethod
+    def _dump_column(column: Column) -> str:
+        return f'{column.name} {f'as {column.rename}' if column.rename else ''}'
+    
+    def _dump_columns(self, columns: list[Column]):
+        
+        new_columns = list(map(lambda column: self._dump_column(column), columns))
+        
+        return new_columns
+    
+    @staticmethod
+    def _dump_table(table: Table) -> str:
+        
+        return f"{f'{table.sql_schema}.' if table.sql_schema else ''}{table.name}" 
 
     def commit(self):
         self._connection.commit()
@@ -57,7 +72,7 @@ class Database():
 
         return cursor
     
-    def tables(self):
+    def tables(self) -> list[str]:
         
         tables = [
             row['TABLE_NAME'] 
@@ -134,12 +149,12 @@ class Database():
             for column in all_columns
         ]
     
-    def select(self, query: SelectQuery):
+    def select(self, query: SelectQuery) -> list[dict[str, Any]]:
         
         params = []
         
-        request: str = f"""select {', '.join(list(map(lambda column: column.name, query.columns))) if query.columns else '*'} 
-            from {query.table.name} {query.table.subname or ''}
+        request: str = f"""select {', '.join(self._dump_columns(query.columns)) if query.columns else '*'} 
+            from {self._dump_table(query.table)} {query.table.subname or ''}
             {' '.join(list(map(lambda join: join.Get(), query.join))) if query.join else ''}
             """
         
@@ -147,38 +162,47 @@ class Database():
             request += f' where {self._wheres_to_text(query.where, params)}'
         
         if query.order_by:
-            order_clause = ', '.join(list(map(lambda column: column.name, query.order_by.columns)))
-            
-            request += f' order by {order_clause} ?'
-            params.append('desc' if query.order_by.desc else 'asc')
+            order_methods = ['asc', 'desc']
+            request += f' order by {', '.join(list(map(lambda column: column.name, query.order_by.columns)))} {order_methods[query.order_by.desc]}'
         
         if query.group_by:
-            group_clause = ', '.join(list(map(lambda column: column.name, query.group_by.columns)))
-            
-            request += f' group by {group_clause}'
+            request += f' group by {', '.join(list(map(lambda column: column.name, query.group_by.columns)))}'
         
         if query.having:
             request += f' having {self._wheres_to_text(query.having, params)}'
         
+        if query.offset:
+            request += f" offset {query.offset.min_row} rows fetch next {query.offset.max_row} rows only"
+        
         request.replace('None', 'null')
+        
+        print(request)
+        print(params)
         
         cursor = self.execute(request, params)
         
         answer = self._serialize_rows(cursor)
         
+        print(answer)
+        
         return answer
     
     def insert(self, query: InsertQuery):
         
-        clause = ', '.join(query.columns)
-        
-        table_columns = f'({clause})' if query.columns else ''
+        table_columns = f'({', '.join(query.columns)})' if query.columns else ''
         
         query_params = ', '.join('?' for _ in range(len(query.values)))
         
-        request = f"insert into {query.table.name} {table_columns} values ({query_params})"
+        output_query = f"OUTPUT {', '.join(self._dump_columns(query.output))}" if query.output else ''
         
-        self.execute(request, query.values)
+        request = f"""insert into {self._dump_table(query.table)} {table_columns}
+        {output_query}
+        values ({query_params})"""
+        
+        print(request)
+        print(query.values)
+        
+        return self.execute(request, query.values)
     
     def update(self, query: UpdateQuery):
         
@@ -191,7 +215,7 @@ class Database():
         
         joined_conditions = f' where {self._wheres_to_text(query.where, params)}' if query.where else ''
         
-        self.execute(f"update {query.table.name} set {set_text} {joined_conditions}", params)
+        return self.execute(f"update {query.table.name} set {set_text} {joined_conditions}", params)
     
     def delete(self, query: DeleteQuery):
         
@@ -199,7 +223,7 @@ class Database():
         
         joined_conditions = f" where {self._wheres_to_text(query.conditions, params)}" if query.conditions else ''
         
-        self.execute(f"delete from {query.table.name} {joined_conditions}", params)
+        return self.execute(f"delete from {query.table.name} {joined_conditions}", params)
     
     def procedure(self, name: str, procedure_params: dict[str, Any]):
 
@@ -207,4 +231,18 @@ class Database():
             
         sql_params: str = ', '.join(f"@{key} = ?" for key in procedure_params.keys())
             
-        self.execute(f"exec sp_{name} {sql_params}", params)
+        return self.execute(f"exec {name} {sql_params}", params)
+    
+    def procedure_class(self, query: ExecQuery):
+        
+        to_execute = f'''exec {f'{query.procedure.sql_schema}.' if query.procedure.sql_schema else ''}{query.procedure.name}
+            {', '.join(f"@{key} = ?" for key in query.params.keys())}
+        '''
+        
+        print(to_execute)
+        print(query.params.values())
+        
+        return self.execute(
+            to_execute,
+            list(query.params.values())
+        )

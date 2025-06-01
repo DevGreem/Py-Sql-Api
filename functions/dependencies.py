@@ -8,7 +8,7 @@ def db_params(
     uid: str = Query(..., description='User Name'),
     pwd: str = Query(..., description='User Password'),
     encrypt: str = Query("no", description='Data encryptation')
-    ) -> DbConfig:
+) -> DbConfig:
     
     return DbConfig(
         server=server,

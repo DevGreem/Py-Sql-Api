@@ -13,12 +13,19 @@ class DbConfig(BaseModel):
 class SQLObject(BaseModel):
     name: str
 
-class Table(SQLObject):
+class SchematicObject(SQLObject):
+    sql_schema: str = 'dbo'
+
+class Table(SchematicObject):
     subname: str|None = None
+    columns: tuple[str, ...]|None = None
+
+class Procedure(SchematicObject): pass
 
 class Column(SQLObject):
     type: str|None = None
-    table: str|None = None
+    table: Table|None = None
+    rename: str|None = None
 
 class SQLInstructor(BaseModel):
     to_column: Column
@@ -45,21 +52,25 @@ class Order_By(Group_By):
 
 class On(BaseModel):
     
-    first_table: Table
-    first_table_column: Column
-    second_table_column: Column
+    table_column: Column
+    other_table: Table
+    other_table_column: Column
     comparation: str = '='
 
 class Join(BaseModel):
     
     table: Table
-    on: On|None = None
-    type: str = 'inner' #? Inner join, left join, right join, outer join
+    on: On
+    type: str = 'inner' #? Inner join, left join, right join, full join
     
     def Get(self) -> str:
-        return f"""{self.type} join {self.table.name} {self.table.subname}
-            on {self.on.first_table.subname}.{self.on.first_table_column.name} {self.on.comparation} {self.table.subname}.{self.on.second_table_column.name}
+        return f""" {self.type} join {f'{self.table.sql_schema}.' if self.table.sql_schema else ''}{self.table.name} {self.table.subname}
+            on {self.table.subname}.{self.on.table_column.name} {self.on.comparation} {self.on.other_table.name}.{self.on.other_table_column.name}
             """
+
+class Offset(BaseModel):
+    min_row: int
+    max_row: int
 
 class SelectQuery(BaseModel):
     table: Table|None = None
@@ -69,16 +80,31 @@ class SelectQuery(BaseModel):
     order_by: Order_By|None = None
     having: list[Having]|None = None
     group_by: Group_By|None = None
+    offset: Offset|None = None
 
 class InsertQuery(BaseModel):
     table: Table
     columns: list[str]|None = None
     values: list[Any]
+    output: list[Column]|None = None
 
 class UpdateQuery(BaseModel):
     table: Table
     column_values: dict[str, Any]
     where: list[Where]|None = None
+
+class EditQuery(BaseModel):
+    table_name: str
+    column_pk: str
+    pk_value: Any
+    table_columns: dict[
+        str,
+        tuple[
+            Column,
+            Any, # Value
+            dict[str, Any]
+        ]
+    ]
 
 class DeleteQuery(BaseModel):
     table: Table
@@ -88,3 +114,7 @@ class ColumnsQuery(BaseModel):
     table: str
     return_columns_types: bool = False
     joins: list[str]|None = None
+
+class ExecQuery(BaseModel):
+    procedure: Procedure
+    params: dict[str, Any]|None = None
