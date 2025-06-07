@@ -1,8 +1,7 @@
 import pyodbc
-from pyodbc import *
+from pyodbc import Connection, Cursor, connect
 import json
 import re
-from re import *
 from typing import Any
 from classes.SQLClasses import *
 
@@ -35,7 +34,7 @@ class Database():
     def _where_to_text(self, where: Where) -> str:
         return f"{where.to_column.name} {where.comparation} ?"
     
-    def _wheres_to_text(self, wheres: list[Where], params: list[Any]) -> str:
+    def _wheres_to_text(self, wheres: list[Where]|list[Having], params: list[Any]) -> str:
         
         text: str = ''
         
@@ -51,7 +50,13 @@ class Database():
     
     @staticmethod
     def _dump_column(column: Column) -> str:
-        return f'{column.name} {f'as {column.rename}' if column.rename else ''}'
+        
+        as_column: str = ''
+        
+        if column.rename:
+            as_column: str = f'as {column.rename}'
+        
+        return f'{column.name} {as_column}'
     
     def _dump_columns(self, columns: list[Column]):
         
@@ -67,7 +72,7 @@ class Database():
     def commit(self):
         self._connection.commit()
 
-    def execute(self, query: str, *params: list[Any]|tuple[Any]) -> Cursor|None:
+    def execute(self, query: str, *params: list[Any]|tuple[Any]) -> Cursor:
         cursor = self._connection.execute(query, *params)
 
         return cursor
@@ -114,7 +119,7 @@ class Database():
         
         return columns
     
-    def columns_class(self, query: ColumnsQuery) -> list[Column]:
+    def columns_class(self, query: ColumnsQuery) -> list[dict[str, str]]:
         
         cursor = self._connection.cursor()
         all_columns = []
@@ -153,9 +158,21 @@ class Database():
         
         params = []
         
-        request: str = f"""select {', '.join(self._dump_columns(query.columns)) if query.columns else '*'} 
+        select_columns: str = '*'
+        
+        if query.columns:
+            select_columns = ', '.join(self._dump_columns(query.columns))
+        
+        select_join: str = ''
+        
+        if query.join:
+            get_join = lambda join: join.Get()
+            
+            select_join = ' '.join(list(map(get_join, query.join)))
+        
+        request: str = f"""select {select_columns}
             from {self._dump_table(query.table)} {query.table.subname or ''}
-            {' '.join(list(map(lambda join: join.Get(), query.join))) if query.join else ''}
+            {select_join}
             """
         
         if query.where:
@@ -163,10 +180,15 @@ class Database():
         
         if query.order_by:
             order_methods = ['asc', 'desc']
-            request += f' order by {', '.join(list(map(lambda column: column.name, query.order_by.columns)))} {order_methods[query.order_by.desc]}'
+            
+            order_columns = ', '.join(self._dump_columns(query.order_by.columns))
+            
+            request += f' order by {order_columns} {order_methods[query.order_by.desc]}'
         
         if query.group_by:
-            request += f' group by {', '.join(list(map(lambda column: column.name, query.group_by.columns)))}'
+            group_columns = ', '.join(self._dump_columns(query.group_by.columns))
+            
+            request += f' group by {group_columns}'
         
         if query.having:
             request += f' having {self._wheres_to_text(query.having, params)}'
@@ -189,11 +211,19 @@ class Database():
     
     def insert(self, query: InsertQuery):
         
-        table_columns = f'({', '.join(query.columns)})' if query.columns else ''
+        table_columns = ''
+        
+        if query.columns:
+            columns = ', '.join(query.columns)
+            table_columns = f'({columns})'
         
         query_params = ', '.join('?' for _ in range(len(query.values)))
         
-        output_query = f"OUTPUT {', '.join(self._dump_columns(query.output))}" if query.output else ''
+        output_query = ''
+        
+        if query.output:
+            output_columns = ', '.join(self._dump_columns(query.output))
+            output_query = f"OUTPUT {output_columns}"
         
         request = f"""insert into {self._dump_table(query.table)} {table_columns}
         {output_query}

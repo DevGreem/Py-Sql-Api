@@ -2,7 +2,7 @@ from fastapi import Depends, Query
 from typing import Annotated
 from classes.SQLClasses import DbConfig
 
-def db_params(
+def get_db_params(
     server: str = Query(..., description='Database Server'),
     database: str = Query(..., description='Database Name'),
     uid: str = Query(..., description='User Name'),

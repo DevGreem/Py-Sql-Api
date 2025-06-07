@@ -1,14 +1,15 @@
 from pydantic import BaseModel
-from typing import TypedDict
+from fastapi import Query
+from typing import TypedDict, Annotated
 from typing import Any
 
 class DbConfig(BaseModel):
     
-    server: str
-    database: str
-    uid: str
-    pwd: str
-    encrypt: str
+    server: Annotated[str, Query(...)]
+    database: Annotated[str, Query(...)]
+    uid: Annotated[str, Query(...)]
+    pwd: Annotated[str, Query(...)]
+    encrypt: Annotated[str, Query(...)]
 
 class SQLObject(BaseModel):
     name: str
@@ -18,7 +19,7 @@ class SchematicObject(SQLObject):
 
 class Table(SchematicObject):
     subname: str|None = None
-    columns: tuple[str, ...]|None = None
+    columns: tuple[str, ...] = ()
 
 class Procedure(SchematicObject): pass
 
@@ -73,25 +74,25 @@ class Offset(BaseModel):
     max_row: int
 
 class SelectQuery(BaseModel):
-    table: Table|None = None
-    join: list[Join]|None = None
-    columns: list[Column]|None = None
-    where: list[Where]|None = None
+    table: Table
+    join: list[Join] = []
+    columns: list[Column] = []
+    where: list[Where] = []
     order_by: Order_By|None = None
-    having: list[Having]|None = None
+    having: list[Having] = []
     group_by: Group_By|None = None
     offset: Offset|None = None
 
 class InsertQuery(BaseModel):
     table: Table
-    columns: list[str]|None = None
+    columns: list[str] = []
     values: list[Any]
-    output: list[Column]|None = None
+    output: list[Column] = []
 
 class UpdateQuery(BaseModel):
     table: Table
     column_values: dict[str, Any]
-    where: list[Where]|None = None
+    where: list[Where] = []
 
 class EditQuery(BaseModel):
     table_name: str
@@ -108,13 +109,13 @@ class EditQuery(BaseModel):
 
 class DeleteQuery(BaseModel):
     table: Table
-    conditions: list[Where]|None = None
+    conditions: list[Where] = []
 
 class ColumnsQuery(BaseModel):
     table: str
     return_columns_types: bool = False
-    joins: list[str]|None = None
+    joins: list[str] = []
 
 class ExecQuery(BaseModel):
     procedure: Procedure
-    params: dict[str, Any]|None = None
+    params: dict[str, Any] = {}

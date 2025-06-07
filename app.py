@@ -1,10 +1,11 @@
 from fastapi import FastAPI, status, Query, Request, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from classes.database import Database
-from classes.SQLClasses import Table, SelectQuery, InsertQuery, UpdateQuery, DeleteQuery, ColumnsQuery, ExecQuery
-from typing import Any, Annotated
-from functions.dependencies import db_params
+from classes.SQLClasses import Table, SelectQuery, InsertQuery, UpdateQuery, DeleteQuery, ColumnsQuery, ExecQuery, DbConfig
+from typing import Any, Annotated, List
+from functions.dependencies import get_db_params
 from pydantic import BaseModel
+from pyodbc import Cursor
 
 # TODO: Cambiar la api para que funcione con la nueva libreria
 
@@ -25,96 +26,83 @@ def Get():
     return { "Hello": "World" }
 
 @app.get('/execute/{command}')
-def Execute(command: str, request: Request):
+def Execute(command: str, params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database()
+    db: Database = Database(params)
     
-    return db.execute(command).fetchall()
+    answer = db.execute(command)
+    
+    return answer.fetchall()
 
 @app.get('/tables')
-def Tables() -> Table:
-    db: Database = Database()
+def Tables(params: DbConfig = Depends(get_db_params)) -> List[str]:
+    db: Database = Database(params)
 
     return db.tables()
 
 @app.get('/columns/{entity_name}')
-def Columns(entity_name: str, types: bool = Query(False)) -> list[str] | list[dict[str, str]]:
-    db: Database = Database()
+def Columns(
+    entity_name: str,
+    types: bool = Query(False),
+    params: DbConfig = Depends(get_db_params)
+    ) -> list[str] | list[dict[str, str]]:
+    
+    db: Database = Database(params)
     
     return db.columns(entity_name, types)
 
 #region POST
 
 @app.post('/columns')
-def ColumnsBody(query: ColumnsQuery = Body(...)) -> list[str] | list[dict[str, str]]:
+def ColumnsBody(query: ColumnsQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> list[str] | list[dict[str, str]]:
     
-    db: Database = Database()
+    db: Database = Database(params)
     
     answer = db.columns_class(query)
     
     return answer
 
 @app.post('/select')
-def BodySelect(query: SelectQuery = Body(...)) -> list[dict[str, Any]]:
+def BodySelect(query: SelectQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> list[dict[str, Any]]:
     
-    db: Database = Database()
+    db: Database = Database(params)
     
     answer = db.select(query)
     
     return answer
 
-@app.post('/select/{entity}')
-def Select(entity: str, query: SelectQuery = Body(SelectQuery(table=None))) -> list[dict[str, Any]]:
-    
-    query.table = Table(name=entity, subname=None)
-    
-    return BodySelect(query)
-
 @app.post('/insert')
-def BodyInsert(query: InsertQuery = Body(...)):
+def BodyInsert(query: InsertQuery = Body(...), params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database()
+    db: Database = Database(params)
     
     answer = db.insert(query)
     
-    try:
-        return answer.fetchall()
-    except:
-        pass
+    return answer.fetchall()
 
 @app.post('/exec')
-def ExecClass(query: ExecQuery = Body(...)):
+def ExecClass(query: ExecQuery = Body(...), params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database()
+    db: Database = Database(params)
     
     response = db.procedure_class(query)
     
-    try:
-        return response.fetchall()
-    except:
-        pass
-
-@app.post('/exec/{procedure}')
-def Exec(procedure: str, params: dict[str, Any] = Body(...)):
-    
-    db: Database = Database()
-    
-    return db.procedure(procedure, params)
+    return response.fetchall()
 
 #region PUT
 
 @app.put('/update', status_code=status.HTTP_204_NO_CONTENT)
-def Update(query: UpdateQuery):
+def Update(query: UpdateQuery, params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database()
+    db: Database = Database(params)
     
-    db.update(query)
+    return db.update(query)
 
 #region DELETE
 
 @app.delete('/delete', status_code=status.HTTP_204_NO_CONTENT)
-def Delete(query: DeleteQuery):
+def Delete(query: DeleteQuery, params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database()
+    db: Database = Database(params)
     
-    db.delete(query)
+    return db.delete(query)
