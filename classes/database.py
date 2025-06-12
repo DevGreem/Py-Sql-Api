@@ -18,7 +18,7 @@ class Database():
             f'UID={config.uid};'
             f'PWD={config.pwd};'
             f'Encrypt={config.encrypt};'
-            'TrustServerCertificate=no;'
+            f'TrustServerCertificate={config.trust_server_certificate};'
             'Connection Timeout=60;',
             autocommit=autocommit
         )

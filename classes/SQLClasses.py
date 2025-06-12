@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from fastapi import Query
-from typing import TypedDict, Annotated
+from typing import Annotated
 from typing import Any
 
 class DbConfig(BaseModel):
@@ -10,6 +10,7 @@ class DbConfig(BaseModel):
     uid: Annotated[str, Query(...)]
     pwd: Annotated[str, Query(...)]
     encrypt: Annotated[str, Query(...)]
+    trust_server_certificate: Annotated[str, Query(...)]
 
 class SQLObject(BaseModel):
     name: str
