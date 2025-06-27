@@ -1,14 +1,14 @@
 from fastapi import Depends, Query
 from typing import Annotated
-from classes.SQLClasses import DbConfig
+from src.classes.sql.common.SQLClasses import DbConfig, EngineConfig
+from src.types.params import EncryptValues
 
 def get_db_params(
     server: str = Query(..., description='Database Server'),
     database: str = Query(..., description='Database Name'),
     uid: str = Query(..., description='User Name'),
     pwd: str = Query(..., description='User Password'),
-    encrypt: str = Query("no", description='Data encryptation'),
-    trust_server_certificate: str = Query('yes', description='Server Certificate')
+    encrypt: EncryptValues = Query('require', description='Data encryptation'),
 ) -> DbConfig:
     
     return DbConfig(
@@ -16,6 +16,5 @@ def get_db_params(
         database=database,
         uid=uid,
         pwd=pwd,
-        encrypt=encrypt,
-        trust_server_certificate=trust_server_certificate
+        encrypt=encrypt
     )

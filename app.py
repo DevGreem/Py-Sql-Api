@@ -1,11 +1,13 @@
 from fastapi import FastAPI, status, Query, Request, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from classes.database import Database
-from classes.SQLClasses import Table, SelectQuery, InsertQuery, UpdateQuery, DeleteQuery, ColumnsQuery, ExecQuery, DbConfig
-from typing import Any, Annotated, List
-from functions.dependencies import get_db_params
+from src.classes.sql.common.database import Database
+from src.classes.sql.postgres import Postgres
+from src.classes.sql.common.SQLClasses import SchemaBody, SelectQuery, InsertQuery, UpdateQuery, DeleteQuery, ColumnsQuery, ExecQuery, DbConfig, FuncQuery
+from typing import Any, Annotated, List, Dict
+from src.functions import get_db_params
 from pydantic import BaseModel
 from pyodbc import Cursor
+from src.classes.sql.types import Row, Data
 
 # TODO: Cambiar la api para que funcione con la nueva libreria
 
@@ -28,81 +30,87 @@ def Get():
 @app.get('/execute/{command}')
 def Execute(command: str, params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
-    answer = db.execute(command)
+    answer = db.fetch(command)
     
-    return answer.fetchall()
+    return answer
 
-@app.get('/tables')
-def Tables(params: DbConfig = Depends(get_db_params)) -> List[str]:
-    db: Database = Database(params)
+@app.post('/tables')
+def Tables(schema: SchemaBody = Body(..., description='Tables Schema'), params: DbConfig = Depends(get_db_params)) -> List[Row]:
+    db = Postgres(config=params)
 
-    return db.tables()
-
-@app.get('/columns/{entity_name}')
-def Columns(
-    entity_name: str,
-    types: bool = Query(False),
-    params: DbConfig = Depends(get_db_params)
-    ) -> list[str] | list[dict[str, str]]:
-    
-    db: Database = Database(params)
-    
-    return db.columns(entity_name, types)
+    return db.tables(schema)
 
 #region POST
 
 @app.post('/columns')
-def ColumnsBody(query: ColumnsQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> list[str] | list[dict[str, str]]:
+def ColumnsBody(
+    query: ColumnsQuery = Body(...),
+    params: DbConfig = Depends(get_db_params)
+) -> List[str] | List[Dict[str, str]]:
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
-    answer = db.columns_class(query)
+    answer = db.columns(query)
     
     return answer
 
 @app.post('/select')
-def BodySelect(query: SelectQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> list[dict[str, Any]]:
+def BodySelect(
+    query: SelectQuery = Body(...),
+    params: DbConfig = Depends(get_db_params)
+) -> Data:
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
     answer = db.select(query)
     
     return answer
 
 @app.post('/insert')
-def BodyInsert(query: InsertQuery = Body(...), params: DbConfig = Depends(get_db_params)):
+def BodyInsert(query: InsertQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> List[Row]:
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
     answer = db.insert(query)
     
-    return answer.fetchall()
+    return answer
 
-@app.post('/exec')
+@app.post('/call')
 def ExecClass(query: ExecQuery = Body(...), params: DbConfig = Depends(get_db_params)):
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
-    response = db.procedure_class(query)
+    db.call(query)
+
+@app.post('/perform')
+def Perform(query: FuncQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> List[Row]:
     
-    return response.fetchall()
+    db = Postgres(config=params)
+    
+    answer = db.perform(query)
+    
+    return answer
 
 #region PUT
 
-@app.put('/update', status_code=status.HTTP_204_NO_CONTENT)
-def Update(query: UpdateQuery, params: DbConfig = Depends(get_db_params)):
+@app.put('/update')
+def Update(query: UpdateQuery = Body(...), params: DbConfig = Depends(get_db_params)) -> List[Row]:
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
-    return db.update(query)
+    answer = db.update(query)
+    
+    return answer
 
 #region DELETE
 
-@app.delete('/delete', status_code=status.HTTP_204_NO_CONTENT)
-def Delete(query: DeleteQuery, params: DbConfig = Depends(get_db_params)):
+@app.delete('/delete')
+def Delete(query: DeleteQuery, params: DbConfig = Depends(get_db_params)) -> List[Row]:
     
-    db: Database = Database(params)
+    db = Postgres(config=params)
     
-    return db.delete(query)
+    answer = db.delete(query)
+    
+    return answer

@@ -1,81 +1,15 @@
-import pyodbc
-from pyodbc import Connection, Cursor, connect
-import json
-import re
-from typing import Any
-from classes.SQLClasses import *
+from src.classes.sql.common.database import Database
+from src.classes.sql.common.SQLClasses import *
+from src.classes.sql.types import Data
 
-class Database():
-
-    _connection: Connection
-
+class SQLServer(Database):
+    
     def __init__(self, config: DbConfig, autocommit: bool = True):
-        
-        self._connection = connect(
-            'DRIVER={ODBC Driver 17 for SQL Server};'
-            f'SERVER={config.server};'
-            f'DATABASE={config.database};'
-            f'UID={config.uid};'
-            f'PWD={config.pwd};'
-            f'Encrypt={config.encrypt};'
-            f'TrustServerCertificate={config.trust_server_certificate};'
-            'Connection Timeout=60;',
+        super().__init__(
+            config=config,
+            driver="{ODBC Driver 17 for SQL Server}",
             autocommit=autocommit
         )
-    
-    @staticmethod
-    def _serialize_rows(cursor: Cursor) -> list[dict]:
-        column_names = [column[0] for column in cursor.description]
-
-        result = [dict(zip(column_names, row)) for row in cursor.fetchall()]
-
-        return result
-    
-    def _where_to_text(self, where: Where) -> str:
-        return f"{where.to_column.name} {where.comparation} ?"
-    
-    def _wheres_to_text(self, wheres: list[Where]|list[Having], params: list[Any]) -> str:
-        
-        text: str = ''
-        
-        cantity = len(wheres)
-            
-        for i in range(cantity):
-            where = wheres[i]
-            
-            text += f" {self._where_to_text(where)} {where.joiner if i < cantity-1 else ''}"
-            params.append(where.value)
-        
-        return text
-    
-    @staticmethod
-    def _dump_column(column: Column) -> str:
-        
-        as_column: str = ''
-        
-        if column.rename:
-            as_column: str = f'as {column.rename}'
-        
-        return f'{column.name} {as_column}'
-    
-    def _dump_columns(self, columns: list[Column]):
-        
-        new_columns = list(map(lambda column: self._dump_column(column), columns))
-        
-        return new_columns
-    
-    @staticmethod
-    def _dump_table(table: Table) -> str:
-        
-        return f"{f'{table.sql_schema}.' if table.sql_schema else ''}{table.name}" 
-
-    def commit(self):
-        self._connection.commit()
-
-    def execute(self, query: str, *params: list[Any]|tuple[Any]) -> Cursor:
-        cursor = self._connection.execute(query, *params)
-
-        return cursor
     
     def tables(self) -> list[str]:
         
@@ -90,41 +24,12 @@ class Database():
 
         return tables
     
-    def columns(self, table_name: str, with_types: bool = False, joins: list[Join] = []) -> list[str] | list[dict[str, str]]:
+    def columns(self, query: ColumnsQuery) -> list[dict[str, str]]:
         
         cursor = self._connection.cursor()
         all_columns = []
         
-        main_columns = cursor.columns(table_name)
-        all_columns.extend(main_columns)
-        
-        if joins:
-            for join in joins:
-                join_columns = cursor.columns(join.table.name)
-                all_columns.extend(join_columns)
-        
-        if with_types:
-            
-            columns = [
-                {
-                    "name": str(column[3]),
-                    "type": str(column[5]).split()[0].lower()
-                }
-                for column in all_columns
-            ]
-            
-            return columns
-            
-        columns = [str(column[3]) for column in all_columns]
-        
-        return columns
-    
-    def columns_class(self, query: ColumnsQuery) -> list[dict[str, str]]:
-        
-        cursor = self._connection.cursor()
-        all_columns = []
-        
-        main_columns = cursor.columns(query.table)
+        main_columns = cursor.columns(query.table.name)
         all_columns.extend(main_columns)
         
         if query.joins:
@@ -154,7 +59,7 @@ class Database():
             for column in all_columns
         ]
     
-    def select(self, query: SelectQuery) -> list[dict[str, Any]]:
+    def select(self, query: SelectQuery) -> Data:
         
         params = []
         
@@ -197,9 +102,6 @@ class Database():
             request += f" offset {query.offset.min_row} rows fetch next {query.offset.max_row} rows only"
         
         request.replace('None', 'null')
-        
-        print(request)
-        print(params)
         
         cursor = self.execute(request, params)
         
@@ -255,15 +157,7 @@ class Database():
         
         return self.execute(f"delete from {query.table.name} {joined_conditions}", params)
     
-    def procedure(self, name: str, procedure_params: dict[str, Any]):
-
-        params = list(procedure_params.values())
-            
-        sql_params: str = ', '.join(f"@{key} = ?" for key in procedure_params.keys())
-            
-        return self.execute(f"exec {name} {sql_params}", params)
-    
-    def procedure_class(self, query: ExecQuery):
+    def procedure(self, query: ExecQuery):
         
         to_execute = f'''exec {f'{query.procedure.sql_schema}.' if query.procedure.sql_schema else ''}{query.procedure.name}
             {', '.join(f"@{key} = ?" for key in query.params.keys())}

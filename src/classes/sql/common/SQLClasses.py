@@ -1,7 +1,18 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import Query
-from typing import Annotated
-from typing import Any
+from typing import Annotated, Any, Literal, List, Tuple, Dict
+from src.types.params import Engine, ListOrTuple, EncryptValues
+import time
+from threading import Thread
+from src.classes.sql.types.join import JoinTypes
+
+# def example():
+    
+#     while True:
+#         time.sleep(3)
+
+# p = Thread(target=example)
+# p.start()
 
 class DbConfig(BaseModel):
     
@@ -9,20 +20,27 @@ class DbConfig(BaseModel):
     database: Annotated[str, Query(...)]
     uid: Annotated[str, Query(...)]
     pwd: Annotated[str, Query(...)]
-    encrypt: Annotated[str, Query(...)]
-    trust_server_certificate: Annotated[str, Query(...)]
+    encrypt: Annotated[EncryptValues, Query(...)]
+
+class EngineConfig(BaseModel):
+    
+    engine: Annotated[Engine, Query(...)]
+    info: DbConfig
 
 class SQLObject(BaseModel):
     name: str
 
 class SchematicObject(SQLObject):
-    sql_schema: str = 'dbo'
+    sql_schema: str = 'public'
 
 class Table(SchematicObject):
     subname: str|None = None
     columns: tuple[str, ...] = ()
+    
+class Function(SchematicObject):
+    return_type: Any|None = None
 
-class Procedure(SchematicObject): pass
+class Procedure(SchematicObject): ...
 
 class Column(SQLObject):
     type: str|None = None
@@ -63,7 +81,7 @@ class Join(BaseModel):
     
     table: Table
     on: On
-    type: str = 'inner' #? Inner join, left join, right join, full join
+    type: JoinTypes|str = 'inner' #? Inner join, left join, right join, full join
     
     def Get(self) -> str:
         return f""" {self.type} join {f'{self.table.sql_schema}.' if self.table.sql_schema else ''}{self.table.name} {self.table.subname}
@@ -72,7 +90,7 @@ class Join(BaseModel):
 
 class Offset(BaseModel):
     min_row: int
-    max_row: int
+    max_row: int|None = None
 
 class SelectQuery(BaseModel):
     table: Table
@@ -87,13 +105,14 @@ class SelectQuery(BaseModel):
 class InsertQuery(BaseModel):
     table: Table
     columns: list[str] = []
-    values: list[Any]
+    values: List[ListOrTuple]
     output: list[Column] = []
 
 class UpdateQuery(BaseModel):
     table: Table
     column_values: dict[str, Any]
     where: list[Where] = []
+    output: list[Column] = []
 
 class EditQuery(BaseModel):
     table_name: str
@@ -113,10 +132,18 @@ class DeleteQuery(BaseModel):
     conditions: list[Where] = []
 
 class ColumnsQuery(BaseModel):
-    table: str
-    return_columns_types: bool = False
+    table: Table = Field(..., description='Table')
+    return_columns_types: bool = Field(True, description='Show Column Types')
     joins: list[str] = []
 
-class ExecQuery(BaseModel):
+class ParameterQuery(BaseModel):
+    params: Dict[str, Any] = {}
+
+class ExecQuery(ParameterQuery):
     procedure: Procedure
-    params: dict[str, Any] = {}
+
+class FuncQuery(ParameterQuery):
+    func: Function
+    
+class SchemaBody(BaseModel):
+    sql_schema: str = 'public'
